@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="HireTrail — A job application tracker that helps you organize companies across stages: To Contact, Contacted, Interview Pending, Offer/Contract, and Closed.">
+    <title>HireTrail — Job Application Tracker</title>
+
+    <!-- Google Fonts: Montserrat (headings) + Open Sans (body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Open+Sans:wght@400;600&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="css/styles.css">
+    <script defer src="js/app.js"></script>
+</head>
+
+<body>
+
+    <!-- Skip to content link -->
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
+    <!-- ===== HEADER ===== -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="logo" aria-label="HireTrail home">
+                <svg class="logo-icon" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                    <rect x="2" y="6" width="28" height="20" rx="3" fill="#A58A6F" />
+                    <rect x="6" y="10" width="20" height="3" rx="1" fill="#F2F0EA" />
+                    <rect x="6" y="15" width="14" height="2" rx="1" fill="#F2F0EA" />
+                    <rect x="6" y="19" width="10" height="2" rx="1" fill="#F2F0EA" />
+                    <circle cx="24" cy="18" r="4" fill="#A0D4E0" />
+                    <polyline points="22,18 23.5,19.5 26,16.5" stroke="#3E2F23" stroke-width="1.2" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="logo-text">HireTrail</span>
+            </a>
+
+            <button class="menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="main-nav"
+                aria-label="Open navigation menu">
+                <span class="menu-icon-bar"></span>
+                <span class="menu-icon-bar"></span>
+                <span class="menu-icon-bar"></span>
+            </button>
+
+            <nav id="main-nav" class="main-nav" aria-label="Main navigation">
+                <ul class="nav-list">
+                    <li><a href="#hero">Home</a></li>
+                    <li><a href="#board">Board</a></li>
+                    <li><a href="#stats-panel">Stats</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main id="main-content">
+
+        <!-- Hero / Intro -->
+        <section id="hero" class="hero" aria-labelledby="hero-heading">
+            <div class="hero-inner">
+                <h1 id="hero-heading">Track every application,<br>land the right role.</h1>
+                <p class="hero-subtitle">Stay organized across every stage of your job search — from first contact to
+                    signed offer.</p>
+                <button class="btn btn-primary" id="btn-open-form" aria-controls="app-dialog">
+                    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+                        <line x1="9" y1="2" x2="9" y2="16" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" />
+                        <line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" />
+                    </svg>
+                    Add Application
+                </button>
+            </div>
+        </section>
+
+        <!-- Stats & Filter Aside -->
+        <aside id="stats-panel" class="stats-panel" aria-labelledby="stats-heading">
+            <h2 id="stats-heading" class="stats-heading">Overview</h2>
+            <div class="stats-grid" id="stats-grid" aria-live="polite">
+                <!-- Populated by JS -->
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-search" class="sr-only">Search by company name</label>
+                <input type="search" id="filter-search" class="filter-input" placeholder="Search company…"
+                    autocomplete="off">
+
+                <label for="filter-stage" class="sr-only">Filter by stage</label>
+                <select id="filter-stage" class="filter-select">
+                    <option value="all">All Stages</option>
+                    <option value="to-contact">To Contact</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="interview-pending">Interview Pending</option>
+                    <option value="offer-contract">Offer / Contract</option>
+                    <option value="closed">Closed</option>
+                </select>
+            </div>
+        </aside>
+
+        <!-- Board -->
+        <div id="board" class="board" aria-label="Application board">
+
+            <!-- Stage Tabs (mobile) -->
+            <div class="stage-tabs" role="tablist" aria-label="Filter by stage">
+                <button role="tab" class="stage-tab active" data-stage="all" aria-selected="true">All</button>
+                <button role="tab" class="stage-tab" data-stage="to-contact" aria-selected="false">To Contact</button>
+                <button role="tab" class="stage-tab" data-stage="contacted" aria-selected="false">Contacted</button>
+                <button role="tab" class="stage-tab" data-stage="interview-pending"
+                    aria-selected="false">Interview</button>
+                <button role="tab" class="stage-tab" data-stage="offer-contract" aria-selected="false">Offer</button>
+                <button role="tab" class="stage-tab" data-stage="closed" aria-selected="false">Closed</button>
+            </div>
+
+            <!-- Stage Sections -->
+            <div class="board-sections" id="board-sections">
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- Empty state -->
+            <div class="empty-state" id="empty-state" hidden>
+                <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+                    <rect x="8" y="12" width="48" height="40" rx="4" fill="#E8E5DD" />
+                    <rect x="16" y="22" width="32" height="4" rx="2" fill="#C4BFB2" />
+                    <rect x="16" y="30" width="24" height="3" rx="1.5" fill="#C4BFB2" />
+                    <rect x="16" y="37" width="18" height="3" rx="1.5" fill="#C4BFB2" />
+                </svg>
+                <p>No applications yet. <button class="btn-link" id="btn-empty-add">Add your first one</button> to get
+                    started.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ===== DIALOG: Add / Edit Application ===== -->
+    <dialog id="app-dialog" class="app-dialog" aria-labelledby="dialog-title">
+        <div class="dialog-inner">
+            <div class="dialog-header">
+                <h2 id="dialog-title">Add Application</h2>
+                <button class="btn-close" id="btn-dialog-close" aria-label="Close dialog" formmethod="dialog">
+                    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                        <line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" />
+                        <line x1="16" y1="4" x2="4" y2="16" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" />
+                    </svg>
+                </button>
+            </div>
+
+            <form id="app-form" class="app-form" novalidate>
+                <input type="hidden" id="app-id" value="">
+
+                <div class="form-field">
+                    <label for="company">Company Name <span class="required" aria-hidden="true">*</span></label>
+                    <input type="text" id="company" name="company" required autocomplete="organization"
+                        placeholder="e.g. Acme Corp">
+                    <span class="field-error" id="error-company" role="alert" aria-live="assertive"></span>
+                </div>
+
+                <div class="form-field">
+                    <label for="job-title">Job Title <span class="required" aria-hidden="true">*</span></label>
+                    <input type="text" id="job-title" name="job-title" required autocomplete="off"
+                        placeholder="e.g. Frontend Developer">
+                    <span class="field-error" id="error-job-title" role="alert" aria-live="assertive"></span>
+                </div>
+
+                <div class="form-field">
+                    <label for="stage">Stage <span class="required" aria-hidden="true">*</span></label>
+                    <select id="stage" name="stage" required>
+                        <option value="">Select a stage…</option>
+                        <option value="to-contact">To Contact</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="interview-pending">Interview Pending</option>
+                        <option value="offer-contract">Offer / Contract</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                    <span class="field-error" id="error-stage" role="alert" aria-live="assertive"></span>
+                </div>
+
+                <div class="form-field">
+                    <label for="contact-person">Contact Person</label>
+                    <input type="text" id="contact-person" name="contact-person" autocomplete="off"
+                        placeholder="e.g. Jane Smith">
+                </div>
+
+                <div class="form-field">
+                    <label for="contact-email">Contact Email</label>
+                    <input type="email" id="contact-email" name="contact-email" autocomplete="email"
+                        placeholder="e.g. jane@acme.com">
+                    <span class="field-error" id="error-contact-email" role="alert" aria-live="assertive"></span>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="date-applied">Date Applied</label>
+                        <input type="date" id="date-applied" name="date-applied">
+                    </div>
+
+                    <div class="form-field">
+                        <label for="interview-date">Interview Date</label>
+                        <input type="date" id="interview-date" name="interview-date">
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" name="notes" rows="3"
+                        placeholder="Any notes about this application…"></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="btn-submit">Save Application</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- ===== CONFIRM DELETE DIALOG ===== -->
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title">
+        <div class="dialog-inner">
+            <h2 id="confirm-title">Delete Application</h2>
+            <p>Are you sure you want to delete this application? This action cannot be undone.</p>
+            <div class="form-actions">
+                <button class="btn btn-secondary" id="btn-confirm-cancel">Cancel</button>
+                <button class="btn btn-danger" id="btn-confirm-delete">Delete</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="site-footer">
+        <p>&copy; <span id="current-year"></span> HireTrail. Built for job seekers who stay organized.</p>
+    </footer>
+
+</body>
+
+</html>
