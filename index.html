@@ -119,9 +119,45 @@
                 <button role="tab" class="stage-tab" data-stage="closed" aria-selected="false">Closed</button>
             </div>
 
-            <!-- Stage Sections -->
+            <!-- Stage Sections (pre-built for targeted DOM updates) -->
             <div class="board-sections" id="board-sections">
-                <!-- Populated by JS -->
+                <section class="stage-section" data-stage-key="to-contact" aria-labelledby="stage-to-contact" hidden>
+                    <div class="stage-section-header">
+                        <h3 class="stage-section-title" id="stage-to-contact">To Contact</h3>
+                        <span class="stage-section-count">0</span>
+                    </div>
+                    <div class="stage-cards"></div>
+                </section>
+                <section class="stage-section" data-stage-key="contacted" aria-labelledby="stage-contacted" hidden>
+                    <div class="stage-section-header">
+                        <h3 class="stage-section-title" id="stage-contacted">Contacted</h3>
+                        <span class="stage-section-count">0</span>
+                    </div>
+                    <div class="stage-cards"></div>
+                </section>
+                <section class="stage-section" data-stage-key="interview-pending"
+                    aria-labelledby="stage-interview-pending" hidden>
+                    <div class="stage-section-header">
+                        <h3 class="stage-section-title" id="stage-interview-pending">Interview Pending</h3>
+                        <span class="stage-section-count">0</span>
+                    </div>
+                    <div class="stage-cards"></div>
+                </section>
+                <section class="stage-section" data-stage-key="offer-contract" aria-labelledby="stage-offer-contract"
+                    hidden>
+                    <div class="stage-section-header">
+                        <h3 class="stage-section-title" id="stage-offer-contract">Offer / Contract</h3>
+                        <span class="stage-section-count">0</span>
+                    </div>
+                    <div class="stage-cards"></div>
+                </section>
+                <section class="stage-section" data-stage-key="closed" aria-labelledby="stage-closed" hidden>
+                    <div class="stage-section-header">
+                        <h3 class="stage-section-title" id="stage-closed">Closed</h3>
+                        <span class="stage-section-count">0</span>
+                    </div>
+                    <div class="stage-cards"></div>
+                </section>
             </div>
 
             <!-- Empty state -->

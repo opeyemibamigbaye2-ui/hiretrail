@@ -1,6 +1,7 @@
 /**
  * HireTrail — Job Application Tracker
  * Vanilla JS: state management, CRUD, localStorage, filtering, validation
+ * Optimized: targeted DOM updates, single render on init, debounced search
  */
 (function () {
     'use strict';
@@ -66,11 +67,11 @@
     };
 
     // =========================================================================
-    // PERSISTENCE
+    // PERSISTENCE (called exactly once on startup)
     // =========================================================================
     function loadState() {
         try {
-            const raw = localStorage.getItem(STORAGE_KEY);
+            var raw = localStorage.getItem(STORAGE_KEY);
             if (raw) {
                 applications = JSON.parse(raw);
             }
@@ -97,7 +98,7 @@
 
     function formatDate(isoString) {
         if (!isoString) return '';
-        const d = new Date(isoString + 'T00:00:00');
+        var d = new Date(isoString + 'T00:00:00');
         return d.toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -105,220 +106,314 @@
         });
     }
 
-    function getFilteredApplications() {
-        let filtered = [...applications];
-
-        if (currentFilter !== 'all') {
-            filtered = filtered.filter((app) => app.stage === currentFilter);
-        }
-
-        if (currentSearch.trim()) {
-            const q = currentSearch.trim().toLowerCase();
-            filtered = filtered.filter((app) =>
-                app.company.toLowerCase().includes(q)
-            );
-        }
-
-        return filtered;
+    function escapeHTML(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 
     function getStageCount(stageKey) {
-        return applications.filter((app) => app.stage === stageKey).length;
+        var count = 0;
+        for (var i = 0; i < applications.length; i++) {
+            if (applications[i].stage === stageKey) count++;
+        }
+        return count;
     }
 
     // =========================================================================
-    // RENDER
+    // CARD HTML GENERATION
+    // =========================================================================
+    function buildCardHTML(app) {
+        var stageOptions = '';
+        for (var i = 0; i < STAGES.length; i++) {
+            var s = STAGES[i];
+            stageOptions += '<option value="' + s.key + '"' +
+                (app.stage === s.key ? ' selected' : '') + '>' + s.label + '</option>';
+        }
+
+        var contactMeta = [];
+        if (app.contactPerson) {
+            contactMeta.push('<div><dt>Contact</dt> <dd>' + escapeHTML(app.contactPerson) + '</dd></div>');
+        }
+        if (app.contactEmail) {
+            contactMeta.push('<div><dt>Email</dt> <dd><a href="mailto:' + escapeHTML(app.contactEmail) + '">' + escapeHTML(app.contactEmail) + '</a></dd></div>');
+        }
+        if (app.dateApplied) {
+            contactMeta.push('<div><dt>Applied</dt> <dd>' + formatDate(app.dateApplied) + '</dd></div>');
+        }
+        if (app.interviewDate) {
+            contactMeta.push('<div><dt>Interview</dt> <dd>' + formatDate(app.interviewDate) + '</dd></div>');
+        }
+
+        var html = '<article class="app-card" data-stage="' + escapeHTML(app.stage) + '" data-id="' + app.id + '">';
+        html += '<div class="app-card-header"><div>';
+        html += '<h4 class="app-card-company">' + escapeHTML(app.company) + '</h4>';
+        html += '<p class="app-card-job">' + escapeHTML(app.jobTitle) + '</p>';
+        html += '</div></div>';
+
+        if (contactMeta.length) {
+            html += '<dl class="app-card-meta">' + contactMeta.join('') + '</dl>';
+        }
+
+        html += '<select class="app-card-stage-select" data-action="change-stage" data-id="' + app.id + '" aria-label="Change stage for ' + escapeHTML(app.company) + '">';
+        html += stageOptions;
+        html += '</select>';
+
+        html += '<div class="app-card-actions">';
+        html += '<button class="btn btn-sm btn-secondary" data-action="edit" data-id="' + app.id + '" aria-label="Edit ' + escapeHTML(app.company) + '">Edit</button>';
+        html += '<button class="btn btn-sm btn-danger" data-action="delete" data-id="' + app.id + '" aria-label="Delete ' + escapeHTML(app.company) + '">Delete</button>';
+        html += '</div>';
+
+        if (app.notes) {
+            html += '<p class="app-card-notes">' + escapeHTML(app.notes) + '</p>';
+        }
+
+        html += '</article>';
+        return html;
+    }
+
+    function attachCardEventsTo(el) {
+        // Stage change select
+        var sel = el.querySelector('.app-card-stage-select');
+        if (sel) {
+            sel.addEventListener('change', function () {
+                changeStage(this.dataset.id, this.value);
+            });
+        }
+        // Edit button
+        var editBtn = el.querySelector('[data-action="edit"]');
+        if (editBtn) {
+            editBtn.addEventListener('click', function () {
+                openEditDialog(this.dataset.id);
+            });
+        }
+        // Delete button
+        var delBtn = el.querySelector('[data-action="delete"]');
+        if (delBtn) {
+            delBtn.addEventListener('click', function () {
+                openConfirmDelete(this.dataset.id);
+            });
+        }
+    }
+
+    // =========================================================================
+    // STAGE SECTION HELPERS
+    // =========================================================================
+    function getStageSection(stageKey) {
+        return dom.boardSections.querySelector('.stage-section[data-stage-key="' + stageKey + '"]');
+    }
+
+    function getStageCardsContainer(stageKey) {
+        var section = getStageSection(stageKey);
+        return section ? section.querySelector('.stage-cards') : null;
+    }
+
+    function updateStageCountBadge(stageKey) {
+        var section = getStageSection(stageKey);
+        if (!section) return;
+        var badge = section.querySelector('.stage-section-count');
+        if (badge) {
+            badge.textContent = getStageCount(stageKey);
+        }
+    }
+
+    function updateAllStageCounts() {
+        for (var i = 0; i < STAGES.length; i++) {
+            updateStageCountBadge(STAGES[i].key);
+        }
+    }
+
+    // =========================================================================
+    // RENDER (full rebuild — used for init, filter, and search)
     // =========================================================================
     function renderStats() {
-        const total = applications.length;
-        let html = '';
+        var total = applications.length;
+        var html = '<div class="stat-card"><span class="stat-value">' + total + '</span><span class="stat-label">Total</span></div>';
 
-        html += `<div class="stat-card">
-      <span class="stat-value">${total}</span>
-      <span class="stat-label">Total</span>
-    </div>`;
-
-        STAGES.forEach((s) => {
-            const count = getStageCount(s.key);
-            html += `<div class="stat-card">
-        <span class="stat-value">${count}</span>
-        <span class="stat-label">${s.label}</span>
-      </div>`;
-        });
+        for (var i = 0; i < STAGES.length; i++) {
+            var count = getStageCount(STAGES[i].key);
+            html += '<div class="stat-card"><span class="stat-value">' + count + '</span><span class="stat-label">' + STAGES[i].label + '</span></div>';
+        }
 
         dom.statsGrid.innerHTML = html;
     }
 
     function renderBoard() {
-        const filtered = getFilteredApplications();
-
         if (applications.length === 0) {
-            dom.boardSections.innerHTML = '';
-            dom.emptyState.hidden = false;
-            dom.stageTabs.forEach((t) => {
-                t.classList.remove('active');
-                t.setAttribute('aria-selected', 'false');
-            });
-            const allTab = document.querySelector('.stage-tab[data-stage="all"]');
-            if (allTab) {
-                allTab.classList.add('active');
-                allTab.setAttribute('aria-selected', 'true');
+            // Hide all stage sections, show empty state
+            for (var i = 0; i < STAGES.length; i++) {
+                var sec = getStageSection(STAGES[i].key);
+                if (sec) {
+                    sec.hidden = true;
+                    sec.querySelector('.stage-cards').innerHTML = '';
+                }
             }
+            dom.emptyState.hidden = false;
+            updateStageTabs();
             return;
         }
 
         dom.emptyState.hidden = true;
 
         // Determine which stages to show
-        const stagesToShow =
-            currentFilter === 'all'
-                ? STAGES
-                : STAGES.filter((s) => s.key === currentFilter);
+        var stagesToShow;
+        if (currentFilter === 'all') {
+            stagesToShow = STAGES;
+        } else {
+            stagesToShow = STAGES.filter(function (s) { return s.key === currentFilter; });
+        }
 
-        let html = '';
+        // Build a lookup of filtered apps by stage
+        var appsByStage = {};
+        for (var i = 0; i < applications.length; i++) {
+            var app = applications[i];
+            // Apply search filter
+            if (currentSearch.trim()) {
+                var q = currentSearch.trim().toLowerCase();
+                if (app.company.toLowerCase().indexOf(q) === -1) continue;
+            }
+            if (!appsByStage[app.stage]) appsByStage[app.stage] = [];
+            appsByStage[app.stage].push(app);
+        }
 
-        stagesToShow.forEach((stage) => {
-            const stageApps = filtered.filter((app) => app.stage === stage.key);
+        // Show/hide and populate each stage section
+        for (var i = 0; i < STAGES.length; i++) {
+            var stage = STAGES[i];
+            var section = getStageSection(stage.key);
+            if (!section) continue;
 
-            html += `<section class="stage-section" aria-labelledby="stage-${stage.key}">
-        <div class="stage-section-header">
-          <h3 class="stage-section-title" id="stage-${stage.key}">${stage.label}</h3>
-          <span class="stage-section-count">${stageApps.length}</span>
-        </div>
-        <div class="stage-cards">`;
-
-            if (stageApps.length === 0) {
-                html += `</div></section>`;
-                return;
+            var shouldShow = false;
+            for (var j = 0; j < stagesToShow.length; j++) {
+                if (stagesToShow[j].key === stage.key) { shouldShow = true; break; }
             }
 
-            stageApps.forEach((app) => {
-                html += renderCard(app);
-            });
-
-            html += `</div></section>`;
-        });
-
-        dom.boardSections.innerHTML = html;
-
-        // Attach event listeners to card controls
-        attachCardEvents();
-    }
-
-    function renderCard(app) {
-        const stageOptions = STAGES.map(
-            (s) =>
-                `<option value="${s.key}" ${app.stage === s.key ? 'selected' : ''
-                }>${s.label}</option>`
-        ).join('');
-
-        const contactMeta = [];
-        if (app.contactPerson) {
-            contactMeta.push(
-                `<div><dt>Contact</dt> <dd>${escapeHTML(app.contactPerson)}</dd></div>`
-            );
-        }
-        if (app.contactEmail) {
-            contactMeta.push(
-                `<div><dt>Email</dt> <dd><a href="mailto:${escapeHTML(app.contactEmail)}">${escapeHTML(app.contactEmail)}</a></dd></div>`
-            );
-        }
-        if (app.dateApplied) {
-            contactMeta.push(
-                `<div><dt>Applied</dt> <dd>${formatDate(app.dateApplied)}</dd></div>`
-            );
-        }
-        if (app.interviewDate) {
-            contactMeta.push(
-                `<div><dt>Interview</dt> <dd>${formatDate(app.interviewDate)}</dd></div>`
-            );
-        }
-
-        return `
-    <article class="app-card" data-stage="${escapeHTML(app.stage)}" data-id="${app.id}">
-      <div class="app-card-header">
-        <div>
-          <h4 class="app-card-company">${escapeHTML(app.company)}</h4>
-          <p class="app-card-job">${escapeHTML(app.jobTitle)}</p>
-        </div>
-      </div>
-      ${contactMeta.length
-                ? `<dl class="app-card-meta">${contactMeta.join('')}</dl>`
-                : ''
+            if (shouldShow) {
+                section.hidden = false;
+                var cardsContainer = section.querySelector('.stage-cards');
+                var stageApps = appsByStage[stage.key] || [];
+                var cardsHTML = '';
+                for (var k = 0; k < stageApps.length; k++) {
+                    cardsHTML += buildCardHTML(stageApps[k]);
+                }
+                cardsContainer.innerHTML = cardsHTML;
+                // Attach events to all cards in this section
+                var cards = cardsContainer.querySelectorAll('.app-card');
+                for (var k = 0; k < cards.length; k++) {
+                    attachCardEventsTo(cards[k]);
+                }
+                // Update count badge
+                section.querySelector('.stage-section-count').textContent = stageApps.length;
+            } else {
+                section.hidden = true;
+                section.querySelector('.stage-cards').innerHTML = '';
             }
-      <select class="app-card-stage-select" data-action="change-stage" data-id="${app.id}" aria-label="Change stage for ${escapeHTML(app.company)}">
-        ${stageOptions}
-      </select>
-      <div class="app-card-actions">
-        <button class="btn btn-sm btn-secondary" data-action="edit" data-id="${app.id}" aria-label="Edit ${escapeHTML(app.company)}">
-          Edit
-        </button>
-        <button class="btn btn-sm btn-danger" data-action="delete" data-id="${app.id}" aria-label="Delete ${escapeHTML(app.company)}">
-          Delete
-        </button>
-      </div>
-      ${app.notes
-                ? `<p class="app-card-notes">${escapeHTML(app.notes)}</p>`
-                : ''
-            }
-    </article>`;
-    }
+        }
 
-    function escapeHTML(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    }
-
-    function attachCardEvents() {
-        // Stage change selects
-        $$('.app-card-stage-select').forEach((sel) => {
-            sel.addEventListener('change', function () {
-                const id = this.dataset.id;
-                const newStage = this.value;
-                changeStage(id, newStage);
-            });
-        });
-
-        // Edit buttons
-        $$('[data-action="edit"]').forEach((btn) => {
-            btn.addEventListener('click', function () {
-                const id = this.dataset.id;
-                openEditDialog(id);
-            });
-        });
-
-        // Delete buttons
-        $$('[data-action="delete"]').forEach((btn) => {
-            btn.addEventListener('click', function () {
-                const id = this.dataset.id;
-                openConfirmDelete(id);
-            });
-        });
-    }
-
-    function renderAll() {
-        renderStats();
-        renderBoard();
         updateStageTabs();
     }
 
     function updateStageTabs() {
-        dom.stageTabs.forEach((tab) => {
-            const stage = tab.dataset.stage;
-            const isActive =
-                stage === currentFilter ||
-                (stage === 'all' && currentFilter === 'all');
+        dom.stageTabs.forEach(function (tab) {
+            var stage = tab.dataset.stage;
+            var isActive = stage === currentFilter || (stage === 'all' && currentFilter === 'all');
             tab.classList.toggle('active', isActive);
             tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
     }
 
     // =========================================================================
-    // CRUD OPERATIONS
+    // TARGETED DOM UPDATES (no full rebuild)
+    // =========================================================================
+
+    /** Insert a single card into the correct stage section */
+    function insertCardIntoStage(app) {
+        var container = getStageCardsContainer(app.stage);
+        if (!container) return;
+
+        var temp = document.createElement('div');
+        temp.innerHTML = buildCardHTML(app);
+        var card = temp.firstElementChild;
+
+        // Insert at top of the stage
+        container.insertBefore(card, container.firstChild);
+        attachCardEventsTo(card);
+
+        // Show the stage section if hidden
+        var section = getStageSection(app.stage);
+        if (section && section.hidden) {
+            section.hidden = false;
+        }
+    }
+
+    /** Replace a card in the DOM with updated HTML */
+    function replaceCardInDOM(app) {
+        var oldCard = dom.boardSections.querySelector('.app-card[data-id="' + app.id + '"]');
+        if (!oldCard) return;
+
+        var temp = document.createElement('div');
+        temp.innerHTML = buildCardHTML(app);
+        var newCard = temp.firstElementChild;
+
+        oldCard.parentNode.replaceChild(newCard, oldCard);
+        attachCardEventsTo(newCard);
+    }
+
+    /** Remove a card from the DOM by id */
+    function removeCardFromDOM(id) {
+        var card = dom.boardSections.querySelector('.app-card[data-id="' + id + '"]');
+        if (!card) return;
+        var stageKey = card.dataset.stage;
+        card.remove();
+        updateStageCountBadge(stageKey);
+    }
+
+    /** Move a card from one stage section to another */
+    function moveCardInDOM(id, newStage) {
+        var card = dom.boardSections.querySelector('.app-card[data-id="' + id + '"]');
+        if (!card) return;
+
+        var oldStage = card.dataset.stage;
+        card.dataset.stage = newStage;
+
+        // Update the stage select on the card
+        var sel = card.querySelector('.app-card-stage-select');
+        if (sel) sel.value = newStage;
+
+        // Move to new stage section
+        var newContainer = getStageCardsContainer(newStage);
+        if (newContainer) {
+            newContainer.insertBefore(card, newContainer.firstChild);
+
+            // Show the target section if hidden
+            var section = getStageSection(newStage);
+            if (section && section.hidden) {
+                section.hidden = false;
+            }
+        }
+
+        // Update both old and new stage counts
+        updateStageCountBadge(oldStage);
+        updateStageCountBadge(newStage);
+    }
+
+    /** Check if empty state should be shown */
+    function checkEmptyState() {
+        if (applications.length === 0) {
+            for (var i = 0; i < STAGES.length; i++) {
+                var sec = getStageSection(STAGES[i].key);
+                if (sec) sec.hidden = true;
+            }
+            dom.emptyState.hidden = false;
+        } else {
+            dom.emptyState.hidden = true;
+        }
+    }
+
+    // =========================================================================
+    // CRUD OPERATIONS (with targeted DOM updates)
     // =========================================================================
     function addApplication(data) {
-        const app = {
+        var app = {
             id: generateId(),
             company: data.company.trim(),
             jobTitle: data.jobTitle.trim(),
@@ -331,18 +426,34 @@
         };
         applications.unshift(app);
         saveState();
-        renderAll();
+
+        // Targeted update: only rebuild if filter/search is active
+        if (currentFilter !== 'all' || currentSearch.trim()) {
+            renderBoard();
+        } else {
+            dom.emptyState.hidden = true;
+            insertCardIntoStage(app);
+            updateStageCountBadge(app.stage);
+        }
+        renderStats();
+        updateStageTabs();
     }
 
     function updateApplication(id, data) {
-        const idx = applications.findIndex((app) => app.id === id);
+        var idx = -1;
+        for (var i = 0; i < applications.length; i++) {
+            if (applications[i].id === id) { idx = i; break; }
+        }
         if (idx === -1) return;
+
+        var oldStage = applications[idx].stage;
+        var newStage = data.stage;
 
         applications[idx] = {
             ...applications[idx],
             company: data.company.trim(),
             jobTitle: data.jobTitle.trim(),
-            stage: data.stage,
+            stage: newStage,
             contactPerson: data.contactPerson.trim(),
             contactEmail: data.contactEmail.trim(),
             dateApplied: data.dateApplied,
@@ -350,62 +461,99 @@
             notes: data.notes.trim(),
         };
         saveState();
-        renderAll();
+
+        // Targeted update
+        if (currentFilter !== 'all' || currentSearch.trim()) {
+            renderBoard();
+        } else if (oldStage !== newStage) {
+            moveCardInDOM(id, newStage);
+            replaceCardInDOM(applications[idx]); // refresh card content
+        } else {
+            replaceCardInDOM(applications[idx]);
+        }
+        renderStats();
+        updateStageTabs();
     }
 
     function deleteApplication(id) {
-        applications = applications.filter((app) => app.id !== id);
+        // Find the app before removing to know its stage
+        var deletedStage = null;
+        for (var i = 0; i < applications.length; i++) {
+            if (applications[i].id === id) { deletedStage = applications[i].stage; break; }
+        }
+
+        applications = applications.filter(function (app) { return app.id !== id; });
         saveState();
-        renderAll();
+
+        // Targeted update
+        if (currentFilter !== 'all' || currentSearch.trim()) {
+            renderBoard();
+        } else {
+            removeCardFromDOM(id);
+            if (deletedStage) updateStageCountBadge(deletedStage);
+            checkEmptyState();
+        }
+        renderStats();
+        updateStageTabs();
     }
 
     function changeStage(id, newStage) {
-        const app = applications.find((app) => app.id === id);
+        var app = null;
+        for (var i = 0; i < applications.length; i++) {
+            if (applications[i].id === id) { app = applications[i]; break; }
+        }
         if (!app) return;
+
+        var oldStage = app.stage;
         app.stage = newStage;
         saveState();
-        renderAll();
+
+        // Targeted update
+        if (currentFilter !== 'all' || currentSearch.trim()) {
+            renderBoard();
+        } else {
+            moveCardInDOM(id, newStage);
+        }
+        renderStats();
+        updateStageTabs();
     }
 
     // =========================================================================
     // FORM VALIDATION
     // =========================================================================
     function clearErrors() {
-        $$('.field-error').forEach((el) => (el.textContent = ''));
-        $$('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
+        $$('.field-error').forEach(function (el) { el.textContent = ''; });
+        $$('[aria-invalid]').forEach(function (el) { el.removeAttribute('aria-invalid'); });
     }
 
     function showError(fieldId, message) {
-        const errorEl = document.getElementById('error-' + fieldId);
-        const inputEl = document.getElementById(fieldId);
+        var errorEl = document.getElementById('error-' + fieldId);
+        var inputEl = document.getElementById(fieldId);
         if (errorEl) errorEl.textContent = message;
         if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
     }
 
     function validateForm() {
         clearErrors();
-        let isValid = true;
+        var isValid = true;
 
-        const company = dom.company.value.trim();
-        const jobTitle = dom.jobTitle.value.trim();
-        const stage = dom.stage.value;
-        const email = dom.contactEmail.value.trim();
+        var company = dom.company.value.trim();
+        var jobTitle = dom.jobTitle.value.trim();
+        var stage = dom.stage.value;
+        var email = dom.contactEmail.value.trim();
 
         if (!company) {
             showError('company', 'Company name is required.');
             isValid = false;
         }
-
         if (!jobTitle) {
             showError('job-title', 'Job title is required.');
             isValid = false;
         }
-
         if (!stage) {
             showError('stage', 'Please select a stage.');
             isValid = false;
         }
-
         if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             showError('contact-email', 'Please enter a valid email address.');
             isValid = false;
@@ -425,12 +573,14 @@
         dom.appId.value = '';
         clearErrors();
         dom.appDialog.showModal();
-        // Focus first input
-        setTimeout(() => dom.company.focus(), 100);
+        setTimeout(function () { dom.company.focus(); }, 100);
     }
 
     function openEditDialog(id) {
-        const app = applications.find((a) => a.id === id);
+        var app = null;
+        for (var i = 0; i < applications.length; i++) {
+            if (applications[i].id === id) { app = applications[i]; break; }
+        }
         if (!app) return;
 
         editingId = id;
@@ -449,7 +599,7 @@
         dom.notes.value = app.notes || '';
 
         dom.appDialog.showModal();
-        setTimeout(() => dom.company.focus(), 100);
+        setTimeout(function () { dom.company.focus(); }, 100);
     }
 
     function closeDialog() {
@@ -461,7 +611,7 @@
     function openConfirmDelete(id) {
         deleteTargetId = id;
         dom.confirmDialog.showModal();
-        setTimeout(() => dom.btnConfirmCancel.focus(), 100);
+        setTimeout(function () { dom.btnConfirmCancel.focus(); }, 100);
     }
 
     function closeConfirmDialog() {
@@ -471,10 +621,9 @@
 
     function handleFormSubmit(e) {
         e.preventDefault();
-
         if (!validateForm()) return;
 
-        const data = {
+        var data = {
             company: dom.company.value,
             jobTitle: dom.jobTitle.value,
             stage: dom.stage.value,
@@ -500,8 +649,8 @@
     function handleFilterChange() {
         currentFilter = dom.filterStage.value;
         currentSearch = dom.filterSearch.value;
-        updateStageTabs();
         renderBoard();
+        renderStats();
     }
 
     function handleSearchInput() {
@@ -510,13 +659,12 @@
     }
 
     function handleStageTabClick(e) {
-        const tab = e.currentTarget;
-        const stage = tab.dataset.stage;
-
+        var tab = e.currentTarget;
+        var stage = tab.dataset.stage;
         currentFilter = stage;
         dom.filterStage.value = stage;
-        updateStageTabs();
         renderBoard();
+        renderStats();
     }
 
     // =========================================================================
@@ -526,9 +674,8 @@
         dom.mainNav.classList.add('is-open');
         dom.menuToggle.setAttribute('aria-expanded', 'true');
         dom.menuToggle.setAttribute('aria-label', 'Close navigation menu');
-        // Focus first nav link
-        const firstLink = dom.mainNav.querySelector('a');
-        if (firstLink) setTimeout(() => firstLink.focus(), 100);
+        var firstLink = dom.mainNav.querySelector('a');
+        if (firstLink) setTimeout(function () { firstLink.focus(); }, 100);
     }
 
     function closeMenu() {
@@ -539,67 +686,49 @@
     }
 
     function toggleMenu() {
-        const isOpen = dom.menuToggle.getAttribute('aria-expanded') === 'true';
-        if (isOpen) {
-            closeMenu();
-        } else {
-            openMenu();
-        }
+        var isOpen = dom.menuToggle.getAttribute('aria-expanded') === 'true';
+        if (isOpen) { closeMenu(); } else { openMenu(); }
     }
 
     // =========================================================================
     // EVENT LISTENERS
     // =========================================================================
     function bindEvents() {
-        // Mobile menu
         dom.menuToggle.addEventListener('click', toggleMenu);
 
-        // Close menu on nav link click (mobile)
-        dom.mainNav.addEventListener('click', (e) => {
-            if (e.target.tagName === 'A') {
-                closeMenu();
-            }
+        dom.mainNav.addEventListener('click', function (e) {
+            if (e.target.tagName === 'A') closeMenu();
         });
 
-        // Open add dialog
         dom.btnOpenForm.addEventListener('click', openAddDialog);
-        dom.btnEmptyAdd?.addEventListener('click', openAddDialog);
+        if (dom.btnEmptyAdd) dom.btnEmptyAdd.addEventListener('click', openAddDialog);
 
-        // Dialog close
         dom.btnDialogClose.addEventListener('click', closeDialog);
         dom.btnCancel.addEventListener('click', closeDialog);
 
-        // Close dialog on backdrop click
-        dom.appDialog.addEventListener('click', (e) => {
+        dom.appDialog.addEventListener('click', function (e) {
             if (e.target === dom.appDialog) closeDialog();
         });
 
-        // Form submit
         dom.appForm.addEventListener('submit', handleFormSubmit);
 
-        // Confirm delete
         dom.btnConfirmCancel.addEventListener('click', closeConfirmDialog);
-        dom.btnConfirmDelete.addEventListener('click', () => {
-            if (deleteTargetId) {
-                deleteApplication(deleteTargetId);
-            }
+        dom.btnConfirmDelete.addEventListener('click', function () {
+            if (deleteTargetId) deleteApplication(deleteTargetId);
             closeConfirmDialog();
         });
-        dom.confirmDialog.addEventListener('click', (e) => {
+        dom.confirmDialog.addEventListener('click', function (e) {
             if (e.target === dom.confirmDialog) closeConfirmDialog();
         });
 
-        // Filter & search
         dom.filterStage.addEventListener('change', handleFilterChange);
-        dom.filterSearch.addEventListener('input', debounce(handleSearchInput, 250));
+        dom.filterSearch.addEventListener('input', debounce(handleSearchInput, 150));
 
-        // Stage tabs
-        dom.stageTabs.forEach((tab) => {
+        dom.stageTabs.forEach(function (tab) {
             tab.addEventListener('click', handleStageTabClick);
         });
 
-        // Keyboard: Escape closes menus/dialogs
-        document.addEventListener('keydown', (e) => {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 if (dom.appDialog.open) {
                     closeDialog();
@@ -611,7 +740,6 @@
             }
         });
 
-        // Footer year
         if (dom.currentYear) {
             dom.currentYear.textContent = new Date().getFullYear();
         }
@@ -621,23 +749,25 @@
     // UTILITY: Debounce
     // =========================================================================
     function debounce(fn, delay) {
-        let timer;
-        return function (...args) {
+        var timer;
+        return function () {
+            var context = this;
+            var args = arguments;
             clearTimeout(timer);
-            timer = setTimeout(() => fn.apply(this, args), delay);
+            timer = setTimeout(function () { fn.apply(context, args); }, delay);
         };
     }
 
     // =========================================================================
-    // INIT
+    // INIT — single render on page load
     // =========================================================================
     function init() {
         loadState();
         bindEvents();
-        renderAll();
+        renderStats();
+        renderBoard();
     }
 
-    // Run on DOM ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {

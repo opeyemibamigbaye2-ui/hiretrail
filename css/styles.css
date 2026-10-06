@@ -16,7 +16,7 @@
     --color-ethereal-light: #D0ECF2;
     --color-bg: #F2F0EA;
     --color-text: #3E2F23;
-    --color-text-light: #6B5D52;
+    --color-text-light: #5A4636;
     --color-text-muted: #5A4636;
     --color-white: #FFFFFF;
     --color-danger: #C0392B;
@@ -411,7 +411,7 @@ h4 {
 }
 
 .btn-link {
-    color: var(--color-mocha-dark);
+    color: #5A4636;
     font-weight: 600;
     text-decoration: underline;
     padding: 0;
@@ -420,30 +420,19 @@ h4 {
 }
 
 .btn-link:hover {
-    color: var(--color-mocha);
+    color: #3E2F23;
+}
+
+.btn-link:focus-visible {
+    outline: 3px solid var(--color-ethereal-dark);
+    outline-offset: 2px;
+    border-radius: 2px;
 }
 
 .btn-sm {
     padding: 0.375rem 0.75rem;
     font-size: var(--text-xs);
     min-height: 36px;
-}
-
-.btn-icon {
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    border-radius: var(--radius);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--color-bg);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-}
-
-.btn-icon:hover {
-    background: var(--color-ethereal-light);
 }
 
 /* ============================================================
@@ -689,12 +678,6 @@ h4 {
 .app-card-meta dd {
     display: inline;
     margin: 0;
-}
-
-.app-card-meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-sm);
 }
 
 .app-card-stage-select {
