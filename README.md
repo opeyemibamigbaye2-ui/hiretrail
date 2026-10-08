@@ -2,6 +2,10 @@
 
 A responsive, accessible, client-side web application that helps job seekers organize their job applications across five stages: **To Contact**, **Contacted**, **Interview Pending**, **Offer / Contract**, and **Closed**.
 
+Built for Project 1 (Responsive Frontend Interface) of the DecodeLabs Full Stack Development internship, using only HTML5, CSS3 and vanilla JavaScript.
+
+**Live demo:** [add GitHub Pages link here]
+
 ---
 
 ## Features
@@ -26,6 +30,8 @@ A responsive, accessible, client-side web application that helps job seekers org
 2. Open [`index.html`](index.html) in any modern browser (Chrome, Firefox, Edge, Safari).
 3. No build step, no dependencies, no server required.
 
+To serve it locally (required for Lighthouse audits, which cannot run on `file://` URLs): run `python -m http.server 8000` inside the project folder and visit `http://localhost:8000`.
+
 ```
 hiretrail/
 ├── index.html        ← Open this file
@@ -34,6 +40,7 @@ hiretrail/
 ├── js/
 │   └── app.js
 ├── assets/
+│   └── screenshots/
 ├── PLAN.md
 └── README.md
 ```
@@ -60,10 +67,11 @@ hiretrail/
 
 | Token | Hex | Role |
 |-------|-----|------|
-| Mocha Mousse | `#A58A6F` | Primary buttons, accents, borders, stage badges |
+| Mocha Mousse | `#A58A6F` | Decorative accents and borders |
+| Dark Mocha | `#6F5339` | Buttons, tabs and badges that carry text (white text on top) |
 | Ethereal Blue | `#A0D4E0` | Secondary buttons, focus states, highlights |
 | Moonlit Grey | `#F2F0EA` | Page background |
-| Dark Brown | `#3E2F23` | Body text (passes WCAG AAA on all backgrounds) |
+| Dark Brown | `#3E2F23` | Body text |
 
 ### Typography
 
@@ -106,18 +114,18 @@ hiretrail/
 
 ### Contrast Verification
 
-All text/background pairs meet **WCAG AA (4.5:1)** minimum. Most meet **AAA (7:1)**:
-
-| Foreground | Background | Ratio | Level |
-|-----------|-----------|-------|-------|
-| `#3E2F23` (text) | `#F2F0EA` (bg) | 8.5:1 | AAA |
-| `#3E2F23` (text) | `#FFFFFF` (card) | 10.8:1 | AAA |
-| `#FFFFFF` (btn text) | `#6F5339` (primary btn) | 5.3:1 | AA |
-| `#FFFFFF` (tab text) | `#6F5339` (active tab) | 5.3:1 | AA |
-| `#FFFFFF` (badge text) | `#6F5339` (count badge) | 5.3:1 | AA |
-| `#3E2F23` (text) | `#A0D4E0` (ethereal) | 5.8:1 | AA |
-| `#FFFFFF` (btn text) | `#C0392B` (danger btn) | 5.0:1 | AA |
-| `#5A4636` (meta text) | `#F2F0EA` (card bg) | 5.8:1 | AA |
+All text/background pairs meet **WCAG AA (4.5:1)** minimum. Ratios were verified with WebAIM's Contrast Checker
+| Foreground | Background | Ratio | Level | Where Used |
+|-----------|-----------|-------|-------|------------|
+| `#3E2F23` | `#F2F0EA` | 11.26:1 | AAA | Body text on page background |
+| `#3E2F23` | `#FFFFFF` | 12.83:1 | AAA | Text on cards, header, inputs |
+| `#3E2F23` | `#A0D4E0` | 7.94:1 | AAA | Text on secondary buttons |
+| `#3E2F23` | `#D0ECF2` | 10.37:1 | AAA | Nav link hover background |
+| `#FFFFFF` | `#6F5339` | 7.06:1 | AAA | Primary button, active tab, count badge |
+| `#FFFFFF` | `#5A3D2E` | 7.06:1 | AAA | Primary button hover |
+| `#FFFFFF` | `#C0392B` | 5.43:1 | AA | Danger/delete button |
+| `#5A4636` | `#F2F0EA` | 7.79:1 | AAA | Muted text, footer, card meta on page bg |
+| `#5A4636` | `#FFFFFF` | 8.88:1 | AAA | Muted text on white cards/inputs |
 
 ---
 
@@ -133,30 +141,59 @@ All text/background pairs meet **WCAG AA (4.5:1)** minimum. Most meet **AAA (7:1
 | 1024px | Desktop | Sidebar + auto-fit board grid | ✅ No overflow |
 | 1440px | Large desktop | Sidebar + auto-fit board grid (fills width) | ✅ No overflow |
 
-### Lighthouse Scores (Target: 90+)
+### Manual Testing
 
-| Category | Score |
-|----------|-------|
-| Performance | 95+ |
-| Accessibility | 100 |
-| Best Practices | 100 |
-| SEO | 100 |
+- ✅ Create a new application with all fields filled
+- ✅ Edit an existing application and verify changes persist
+- ✅ Move an application between stages using the card dropdown
+- ✅ Delete an application with confirmation dialog
+- ✅ Refresh the page and confirm data persists (localStorage)
+- ✅ Submit empty form — inline validation errors appear
+- ✅ Enter invalid email — email format error shown
+- ✅ Search by company name filters the board in real time
+- ✅ Stage filter dropdown and tab bar both work
+- ✅ Keyboard-only navigation: Tab through all controls, Enter/Space to activate, Escape to close
+- ✅ Layouts checked at 320, 375, 768, 1024 and 1440px — no horizontal scrolling
 
-> Scores verified with Chrome DevTools Lighthouse 12.x (desktop and mobile emulation). No contrast failures, no ARIA violations, no missing labels.
+### Lighthouse
+
+Tested on localhost, in Incognito, 3 runs each, with no other apps running.
+
+| Device | Performance | Accessibility | Best Practices | SEO |
+|---|---|---|---|---|
+| Desktop | 100 | 100 | 100 | 100 |
+| Mobile (simulated 4× CPU throttle) | 89–98 (median 94) | 100 | 96–100 | 100 |
+
+> Mobile Performance varies between runs because Lighthouse's mobile simulation is sensitive to machine load.
 
 ---
 
 ## Screenshots
 
-<!-- TODO: Add screenshots -->
-| Viewport | Placeholder |
+| Viewport | Screenshot |
 |----------|-------------|
-| Mobile (375px) | ![Mobile screenshot](assets/screenshot-mobile.png) |
-| Tablet (768px) | ![Tablet screenshot](assets/screenshot-tablet.png) |
-| Desktop (1024px) | ![Desktop screenshot](assets/screenshot-desktop.png) |
+| Mobile (375px) | ![Mobile screenshot](assets/screenshots/mobile.png) |
+| Tablet (768px) | ![Tablet screenshot](assets/screenshots/tablet.png) |
+| Desktop (1280px+) | ![Desktop screenshot](assets/screenshots/desktop.png) |
+|Application dialog | ![Add application dialog](assets/screenshots/dialog.png) |
+---
+
+## Known Limitations
+
+- Data is stored only in the browser's `localStorage` (single user, no sync between devices)
+- No data export or import
+- No drag-and-drop between stages (stage changes use a dropdown)
+- No interview reminders or notifications
+- Four font weights are used across two families, one more than the brief's 3-weight guideline
 
 ---
 
 ## License
 
 This project was built as part of a DecodeLabs Full Stack internship assignment. Free to use and modify.
+
+---
+
+## Author
+
+Bamigbaye Opeyemi, Full Stack Development Intern at DecodeLabs.
