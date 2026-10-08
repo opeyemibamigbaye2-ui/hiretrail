@@ -4,7 +4,7 @@ A responsive, accessible, client-side web application that helps job seekers org
 
 Built for Project 1 (Responsive Frontend Interface) of the DecodeLabs Full Stack Development internship, using only HTML5, CSS3 and vanilla JavaScript.
 
-**Live demo:** [add GitHub Pages link here]
+**Live demo:** https://opeyemibamigbaye2-ui.github.io/hiretrail/
 
 ---
 
