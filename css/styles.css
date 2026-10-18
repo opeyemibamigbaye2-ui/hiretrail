@@ -1102,6 +1102,43 @@ h4 {
 }
 
 /* ============================================================
+   OFFLINE BANNER & FORM GENERAL ERROR
+   ============================================================ */
+.offline-banner {
+    background-color: #FFF3CD;
+    color: #856404;
+    border: 1px solid #FFEEBA;
+    padding: var(--space-sm) var(--space-md);
+    margin: var(--space-md) auto;
+    max-width: var(--max-width);
+    width: calc(100% - var(--space-md) * 2);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+}
+
+.offline-banner .offline-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.form-general-error {
+    margin-bottom: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    background-color: #FDE8E8;
+    border-radius: var(--radius-sm);
+    display: none;
+}
+
+.form-general-error:not(:empty) {
+    display: block;
+}
+
+/* ============================================================
    UTILITY: Hidden
    ============================================================ */
 [hidden] {

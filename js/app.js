@@ -20,6 +20,17 @@
     const STORAGE_KEY = 'hiretrail-applications';
 
     // =========================================================================
+    // API CONFIGURATION
+    // =========================================================================
+    const DEPLOYED_API_URL = ''; // e.g. 'https://hiretrail-api.onrender.com'
+    const LOCAL_API_URL = 'http://localhost:3000';
+    const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? (window.HIRETRAIL_API_URL || LOCAL_API_URL)
+        : (DEPLOYED_API_URL || LOCAL_API_URL);
+
+    let isOnline = false;
+
+    // =========================================================================
     // STATE
     // =========================================================================
     let applications = [];
@@ -64,17 +75,48 @@
         emptyState: $('#empty-state'),
         stageTabs: $$('.stage-tab'),
         currentYear: $('#current-year'),
+        offlineBanner: $('#offline-banner'),
+        formGeneralError: $('#form-general-error'),
     };
 
     // =========================================================================
-    // PERSISTENCE (called exactly once on startup)
+    // PERSISTENCE & API CLIENT
     // =========================================================================
-    function loadState() {
+    function updateOfflineBanner(show) {
+        if (dom.offlineBanner) {
+            dom.offlineBanner.hidden = !show;
+        }
+    }
+
+    async function checkApiHealth() {
+        try {
+            var res = await fetch(API_BASE + '/api/health', { method: 'GET' });
+            if (res.ok) {
+                var data = await res.json();
+                return data && data.status === 'ok';
+            }
+            return false;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    async function apiRequest(path, options) {
+        options = options || {};
+        var headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+        var res = await fetch(API_BASE + '/api/applications' + path, Object.assign({}, options, { headers: headers }));
+        if (res.status === 204) return null;
+        var body = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            throw (body && body.error) || { status: res.status, message: 'Request failed.' };
+        }
+        return body;
+    }
+
+    function loadLocalState() {
         try {
             var raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) {
-                applications = JSON.parse(raw);
-            }
+            if (raw) applications = JSON.parse(raw);
         } catch (e) {
             console.warn('Failed to load state from localStorage', e);
             applications = [];
@@ -86,6 +128,28 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(applications));
         } catch (e) {
             console.warn('Failed to save state to localStorage', e);
+        }
+    }
+
+    async function loadState() {
+        loadLocalState();
+        isOnline = await checkApiHealth();
+        updateOfflineBanner(!isOnline);
+
+        if (isOnline) {
+            try {
+                var remoteApps = await apiRequest('');
+                if (Array.isArray(remoteApps)) {
+                    applications = remoteApps;
+                    saveState();
+                    renderStats();
+                    renderBoard();
+                }
+            } catch (err) {
+                console.warn('API error, falling back to local storage', err);
+                isOnline = false;
+                updateOfflineBanner(true);
+            }
         }
     }
 
@@ -412,19 +476,28 @@
     // =========================================================================
     // CRUD OPERATIONS (with targeted DOM updates)
     // =========================================================================
-    function addApplication(data) {
-        var app = {
-            id: generateId(),
+    async function addApplication(data) {
+        var payload = {
             company: data.company.trim(),
             jobTitle: data.jobTitle.trim(),
             stage: data.stage,
-            contactPerson: data.contactPerson.trim(),
-            contactEmail: data.contactEmail.trim(),
-            dateApplied: data.dateApplied,
-            interviewDate: data.interviewDate,
-            notes: data.notes.trim(),
         };
-        applications.unshift(app);
+        if (data.contactPerson && data.contactPerson.trim()) payload.contactPerson = data.contactPerson.trim();
+        if (data.contactEmail && data.contactEmail.trim()) payload.contactEmail = data.contactEmail.trim();
+        if (data.dateApplied) payload.dateApplied = data.dateApplied;
+        if (data.interviewDate) payload.interviewDate = data.interviewDate;
+        if (data.notes && data.notes.trim()) payload.notes = data.notes.trim();
+
+        if (isOnline) {
+            var created = await apiRequest('', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+            applications.unshift(created);
+        } else {
+            var localApp = Object.assign({ id: generateId() }, payload);
+            applications.unshift(localApp);
+        }
         saveState();
 
         // Targeted update: only rebuild if filter/search is active
@@ -432,14 +505,14 @@
             renderBoard();
         } else {
             dom.emptyState.hidden = true;
-            insertCardIntoStage(app);
-            updateStageCountBadge(app.stage);
+            insertCardIntoStage(applications[0]);
+            updateStageCountBadge(applications[0].stage);
         }
         renderStats();
         updateStageTabs();
     }
 
-    function updateApplication(id, data) {
+    async function updateApplication(id, data) {
         var idx = -1;
         for (var i = 0; i < applications.length; i++) {
             if (applications[i].id === id) { idx = i; break; }
@@ -449,17 +522,26 @@
         var oldStage = applications[idx].stage;
         var newStage = data.stage;
 
-        applications[idx] = {
-            ...applications[idx],
+        var payload = {
             company: data.company.trim(),
             jobTitle: data.jobTitle.trim(),
             stage: newStage,
-            contactPerson: data.contactPerson.trim(),
-            contactEmail: data.contactEmail.trim(),
-            dateApplied: data.dateApplied,
-            interviewDate: data.interviewDate,
-            notes: data.notes.trim(),
         };
+        if (data.contactPerson && data.contactPerson.trim()) payload.contactPerson = data.contactPerson.trim();
+        if (data.contactEmail && data.contactEmail.trim()) payload.contactEmail = data.contactEmail.trim();
+        if (data.dateApplied) payload.dateApplied = data.dateApplied;
+        if (data.interviewDate) payload.interviewDate = data.interviewDate;
+        if (data.notes && data.notes.trim()) payload.notes = data.notes.trim();
+
+        if (isOnline) {
+            var updated = await apiRequest('/' + id, {
+                method: 'PUT',
+                body: JSON.stringify(payload),
+            });
+            applications[idx] = Object.assign({}, applications[idx], updated || payload);
+        } else {
+            applications[idx] = Object.assign({}, applications[idx], payload);
+        }
         saveState();
 
         // Targeted update
@@ -467,7 +549,7 @@
             renderBoard();
         } else if (oldStage !== newStage) {
             moveCardInDOM(id, newStage);
-            replaceCardInDOM(applications[idx]); // refresh card content
+            replaceCardInDOM(applications[idx]);
         } else {
             replaceCardInDOM(applications[idx]);
         }
@@ -475,8 +557,7 @@
         updateStageTabs();
     }
 
-    function deleteApplication(id) {
-        // Find the app before removing to know its stage
+    async function deleteApplication(id) {
         var deletedStage = null;
         for (var i = 0; i < applications.length; i++) {
             if (applications[i].id === id) { deletedStage = applications[i].stage; break; }
@@ -495,9 +576,17 @@
         }
         renderStats();
         updateStageTabs();
+
+        if (isOnline) {
+            try {
+                await apiRequest('/' + id, { method: 'DELETE' });
+            } catch (e) {
+                console.warn('Failed to delete on server:', e);
+            }
+        }
     }
 
-    function changeStage(id, newStage) {
+    async function changeStage(id, newStage) {
         var app = null;
         for (var i = 0; i < applications.length; i++) {
             if (applications[i].id === id) { app = applications[i]; break; }
@@ -516,14 +605,37 @@
         }
         renderStats();
         updateStageTabs();
+
+        if (isOnline) {
+            try {
+                var payload = {
+                    company: app.company,
+                    jobTitle: app.jobTitle,
+                    stage: newStage,
+                };
+                if (app.contactPerson) payload.contactPerson = app.contactPerson;
+                if (app.contactEmail) payload.contactEmail = app.contactEmail;
+                if (app.dateApplied) payload.dateApplied = app.dateApplied;
+                if (app.interviewDate) payload.interviewDate = app.interviewDate;
+                if (app.notes) payload.notes = app.notes;
+
+                await apiRequest('/' + id, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload),
+                });
+            } catch (e) {
+                console.warn('Failed to sync stage change to API', e);
+            }
+        }
     }
 
     // =========================================================================
-    // FORM VALIDATION
+    // FORM VALIDATION & SERVER ERROR HANDLING
     // =========================================================================
     function clearErrors() {
         $$('.field-error').forEach(function (el) { el.textContent = ''; });
         $$('[aria-invalid]').forEach(function (el) { el.removeAttribute('aria-invalid'); });
+        if (dom.formGeneralError) dom.formGeneralError.textContent = '';
     }
 
     function showError(fieldId, message) {
@@ -531,6 +643,29 @@
         var inputEl = document.getElementById(fieldId);
         if (errorEl) errorEl.textContent = message;
         if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
+    }
+
+    function handleServerErrors(err) {
+        if (!err) return;
+        var fieldMap = {
+            company: 'company',
+            jobTitle: 'job-title',
+            stage: 'stage',
+            contactPerson: 'contact-person',
+            contactEmail: 'contact-email',
+            dateApplied: 'date-applied',
+            interviewDate: 'interview-date',
+            notes: 'notes',
+        };
+
+        if (err.details && Array.isArray(err.details) && err.details.length > 0) {
+            err.details.forEach(function (d) {
+                var targetField = fieldMap[d.field] || d.field;
+                showError(targetField, d.message);
+            });
+        } else if (err.message) {
+            if (dom.formGeneralError) dom.formGeneralError.textContent = err.message;
+        }
     }
 
     function validateForm() {
@@ -541,6 +676,8 @@
         var jobTitle = dom.jobTitle.value.trim();
         var stage = dom.stage.value;
         var email = dom.contactEmail.value.trim();
+        var dateApplied = dom.dateApplied.value;
+        var interviewDate = dom.interviewDate.value;
 
         if (!company) {
             showError('company', 'Company name is required.');
@@ -556,6 +693,10 @@
         }
         if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             showError('contact-email', 'Please enter a valid email address.');
+            isValid = false;
+        }
+        if (dateApplied && interviewDate && interviewDate < dateApplied) {
+            showError('interview-date', 'Interview date cannot be earlier than application date.');
             isValid = false;
         }
 
@@ -619,9 +760,9 @@
         deleteTargetId = null;
     }
 
-    function handleFormSubmit(e) {
+    async function handleFormSubmit(e) {
         e.preventDefault();
-        if (!validateForm()) return;
+        clearErrors();
 
         var data = {
             company: dom.company.value,
@@ -634,13 +775,30 @@
             notes: dom.notes.value,
         };
 
-        if (editingId) {
-            updateApplication(editingId, data);
+        if (isOnline) {
+            try {
+                if (editingId) {
+                    await updateApplication(editingId, data);
+                } else {
+                    await addApplication(data);
+                }
+                closeDialog();
+            } catch (err) {
+                handleServerErrors(err);
+            }
         } else {
-            addApplication(data);
+            if (!validateForm()) return;
+            try {
+                if (editingId) {
+                    await updateApplication(editingId, data);
+                } else {
+                    await addApplication(data);
+                }
+                closeDialog();
+            } catch (err) {
+                handleServerErrors(err);
+            }
         }
-
-        closeDialog();
     }
 
     // =========================================================================
@@ -713,8 +871,8 @@
         dom.appForm.addEventListener('submit', handleFormSubmit);
 
         dom.btnConfirmCancel.addEventListener('click', closeConfirmDialog);
-        dom.btnConfirmDelete.addEventListener('click', function () {
-            if (deleteTargetId) deleteApplication(deleteTargetId);
+        dom.btnConfirmDelete.addEventListener('click', async function () {
+            if (deleteTargetId) await deleteApplication(deleteTargetId);
             closeConfirmDialog();
         });
         dom.confirmDialog.addEventListener('click', function (e) {
@@ -761,11 +919,9 @@
     // =========================================================================
     // INIT — single render on page load
     // =========================================================================
-    function init() {
-        loadState();
+    async function init() {
         bindEvents();
-        renderStats();
-        renderBoard();
+        await loadState();
     }
 
     if (document.readyState === 'loading') {

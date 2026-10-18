@@ -1,5 +1,18 @@
 # HireTrail — Job Application Tracker
 
+> **Project 2 (Backend API) lives in [`/backend`](backend/README.md).**
+
+## Backend API (Project 2)
+
+A REST API built with Node.js and Express. Full documentation is in [`backend/README.md`](backend/README.md).
+
+    cd backend
+    npm install
+    npm start      # http://localhost:3000
+    npm test       # 35 automated tests
+
+The frontend (`js/app.js`) calls the API when it is reachable and falls back to localStorage when it is not.
+
 A responsive, accessible, client-side web application that helps job seekers organize their job applications across five stages: **To Contact**, **Contacted**, **Interview Pending**, **Offer / Contract**, and **Closed**.
 
 Built for Project 1 (Responsive Frontend Interface) and Project 2 (Backend API Development, located in [`/backend`](backend/README.md)) of the DecodeLabs Full Stack Development internship, using HTML5, CSS3, vanilla JavaScript, and Node.js/Express.

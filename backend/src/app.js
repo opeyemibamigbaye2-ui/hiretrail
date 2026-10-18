@@ -5,6 +5,8 @@ const {
   httpError,
   asyncHandler,
   securityHeaders,
+  responseTime,
+  apiKeyAuth,
   cors,
   rateLimit,
   requireJson,
@@ -25,13 +27,22 @@ const { validateApplication, validateStageQuery } = require('./validate');
  *   DELETE /api/applications/:id    remove
  *   GET    /api/health              liveness check
  */
-function createApp({ store, allowedOrigins = '*', rateLimitOptions = { windowMs: 60_000, max: 100 } }) {
+function createApp({
+  store,
+  allowedOrigins = '*',
+  rateLimitOptions = { windowMs: 60_000, max: 100 },
+  apiKey = process.env.API_KEY,
+}) {
   const app = express();
   app.disable('x-powered-by');
 
   app.use(securityHeaders);
+  app.use(responseTime);
   app.use(cors(allowedOrigins));
   app.use(rateLimit(rateLimitOptions));
+  if (apiKey) {
+    app.use(apiKeyAuth(apiKey));
+  }
   app.use(requireJson);
   app.use(express.json({ limit: '10kb' }));
 

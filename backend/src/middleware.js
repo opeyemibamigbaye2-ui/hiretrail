@@ -18,6 +18,40 @@ function securityHeaders(req, res, next) {
   next();
 }
 
+/** Record and set X-Response-Time header on every response. */
+function responseTime(req, res, next) {
+  const start = process.hrtime.bigint();
+  const originalEnd = res.end;
+  res.end = function (...args) {
+    if (!res.headersSent) {
+      const elapsedMs = (Number(process.hrtime.bigint() - start) / 1e6).toFixed(2);
+      res.setHeader('X-Response-Time', `${elapsedMs}ms`);
+    }
+    return originalEnd.apply(this, args);
+  };
+  next();
+}
+
+/**
+ * Optional API-key middleware:
+ * Returns 401 Unauthorized if missing, 403 Forbidden if invalid.
+ */
+function apiKeyAuth(expectedKey) {
+  return (req, res, next) => {
+    if (!expectedKey) return next();
+    if (req.path === '/api/health' || req.method === 'OPTIONS') return next();
+
+    const provided = req.headers['x-api-key'] || (req.query && req.query.api_key);
+    if (!provided) {
+      return next(httpError(401, 'Unauthorized: Missing API key.'));
+    }
+    if (provided !== expectedKey) {
+      return next(httpError(403, 'Forbidden: Invalid API key.'));
+    }
+    next();
+  };
+}
+
 /**
  * CORS so the HireTrail frontend (e.g. on GitHub Pages) can call this API
  * from a different origin. Set ALLOWED_ORIGINS="https://you.github.io" in
@@ -34,8 +68,8 @@ function cors(allowedOrigins = '*') {
       res.setHeader('Vary', 'Origin');
     }
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Access-Control-Expose-Headers', 'Location,Retry-After');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-API-Key');
+    res.setHeader('Access-Control-Expose-Headers', 'Location,Retry-After,X-Response-Time');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   };
@@ -122,6 +156,8 @@ module.exports = {
   httpError,
   asyncHandler,
   securityHeaders,
+  responseTime,
+  apiKeyAuth,
   cors,
   rateLimit,
   requireJson,

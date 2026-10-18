@@ -130,6 +130,66 @@ curl -i -X POST http://localhost:3000/api/applications \
 }
 ```
 
+### PowerShell Executable Examples
+
+In Windows PowerShell, use `Invoke-RestMethod` or `curl.exe` (since default `curl` is an alias in PowerShell).
+
+**Create Application (201 Created):**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/applications" -Method Post -ContentType "application/json" -Body '{
+  "company": "Arcane Group",
+  "jobTitle": "Backend Developer",
+  "stage": "to-contact",
+  "contactPerson": "Jake Paul",
+  "contactEmail": "jake@arcane.com",
+  "dateApplied": "2026-10-07",
+  "interviewDate": "2026-10-17",
+  "notes": "Backend complexities"
+}'
+```
+
+**List Applications (200 OK):**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/applications"
+Invoke-RestMethod -Uri "http://localhost:3000/api/applications?stage=to-contact"
+Invoke-RestMethod -Uri "http://localhost:3000/api/applications?search=arc"
+```
+
+**Read One (200 OK):**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/applications/<id>"
+```
+
+**Update Application (200 OK):**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/applications/<id>" -Method Put -ContentType "application/json" -Body '{
+  "company": "Arcane Group",
+  "jobTitle": "Backend Developer",
+  "stage": "interview-pending"
+}'
+```
+
+**Delete Application (204 No Content):**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/applications/<id>" -Method Delete
+```
+
+**Trigger 429 Rate Limiting:**
+```powershell
+1..110 | ForEach-Object { curl.exe -s -o NUL -w "%{http_code} " http://localhost:3000/api/health }
+```
+
+### Thunder Client / Postman Setup
+
+1. **Collection**: Create a collection named `HireTrail API`.
+2. **Environment Variable**: Set `base_url` to `http://localhost:3000`.
+3. **Requests**:
+   - `GET {{base_url}}/api/health`
+   - `GET {{base_url}}/api/applications` (add query params `stage` or `search` as needed)
+   - `POST {{base_url}}/api/applications` with Header `Content-Type: application/json` and JSON body.
+   - `PUT {{base_url}}/api/applications/{{id}}` with updated JSON body.
+   - `DELETE {{base_url}}/api/applications/{{id}}`
+
 ## Status codes
 
 | Code | Meaning | When you get it |
@@ -138,6 +198,8 @@ curl -i -X POST http://localhost:3000/api/applications \
 | `201` | Created | Successful `POST` (with a `Location` header) |
 | `204` | No Content | Successful `DELETE` |
 | `400` | Bad Request | Malformed JSON, failed validation, or an invalid query parameter |
+| `401` | Unauthorized | Missing API key when authentication is enabled |
+| `403` | Forbidden | Invalid API key when authentication is enabled |
 | `404` | Not Found | Unknown id or unknown route |
 | `405` | Method Not Allowed | e.g. `PATCH` on a resource (an `Allow` header lists what works) |
 | `413` | Payload Too Large | Body over 10 KB |
@@ -146,6 +208,12 @@ curl -i -X POST http://localhost:3000/api/applications \
 | `500` | Internal Server Error | Something unexpected. The response never leaks internals |
 
 Every error has the same shape: `{ "error": { "status", "message", "details"? } }`.
+
+## Performance & Response Time Header
+
+Every response includes an `X-Response-Time` header computed with high-precision `process.hrtime.bigint()`:
+- **Measured Response Time**: `7.43ms` for `/api/health`, sub-10ms for collection reads and writes.
+- Header is exposed via CORS: `Access-Control-Expose-Headers: Location,Retry-After,X-Response-Time`.
 
 ## How it follows the brief
 
@@ -167,13 +235,13 @@ Every error has the same shape: `{ "error": { "status", "message", "details"? } 
 ## Project structure
 
 ```
-hiretrail-api/
+backend/
 ├── server.js          Entry point: config, listen, graceful shutdown
 ├── src/
 │   ├── app.js         Routes and middleware wiring
 │   ├── validate.js    Syntactic and semantic validation
 │   ├── store.js       JSON-file persistence (atomic writes)
-│   └── middleware.js  CORS, rate limit, content-type check, error handling
+│   └── middleware.js  CORS, rate limit, content-type check, error handling, responseTime, apiKeyAuth
 ├── test/
 │   └── api.test.js    35 tests (node:test, no extra libraries)
 ├── data/              Created at runtime (git-ignored)
@@ -187,10 +255,11 @@ hiretrail-api/
 | `PORT` | `3000` | Port to listen on |
 | `DATA_FILE` | `data/applications.json` | Where data is stored |
 | `ALLOWED_ORIGINS` | `*` | Comma-separated origins allowed by CORS, e.g. `https://yourname.github.io` |
+| `API_KEY` | *(optional)* | Secret key for `X-API-Key` authentication |
 
 ## Connecting the HireTrail frontend
 
-Your frontend is on GitHub Pages, which only hosts static files, so this API has to be deployed separately (see below) and the frontend pointed at it. Start by swapping the `localStorage` calls in `js/app.js` for `fetch`:
+Your frontend is on GitHub Pages, which only hosts static files, so this API has to be deployed separately (see below) and the frontend pointed at it. The frontend in `js/app.js` is fully connected to this API and automatically falls back to `localStorage` when the API is offline:
 
 ```js
 const API = 'http://localhost:3000/api/applications'; // use your deployed URL in production
@@ -212,18 +281,20 @@ const updateApplication = (id, data) => request(`/${id}`, { method: 'PUT', body:
 const deleteApplication = (id)       => request(`/${id}`, { method: 'DELETE' });
 ```
 
-On a `400`, `error.details` holds `{ field, message }` pairs that can be shown under the matching form fields. Stage keys match the frontend (`to-contact`, `interview-pending`, and so on), and dates use `YYYY-MM-DD`, which is what `<input type="date">` produces.
+On a `400`, `error.details` holds `{ field, message }` pairs that are mapped under the matching form fields. Stage keys match the frontend (`to-contact`, `interview-pending`, and so on), and dates use `YYYY-MM-DD`.
 
-## Deploying (optional)
+## Deploying (recommended)
 
-Any Node host works. On Render or Railway: create a Web Service from this folder, build command `npm install`, start command `npm start`, and set `ALLOWED_ORIGINS` to your GitHub Pages origin (`https://<username>.github.io`). Free tiers have ephemeral disks, so data may reset on redeploy. That is fine for a demo, and a hosted database is the next step when it matters.
+Any Node host works. On Render or Railway: create a Web Service from the `backend` folder, build command `npm install`, start command `npm start`, and set `ALLOWED_ORIGINS` to your GitHub Pages origin (`https://opeyemibamigbaye2-ui.github.io`). Free tiers have ephemeral disks, so data may reset on redeploy. That is fine for a demo, and a hosted database is the next step when it matters.
 
-## Known limitations
+## Security & Architecture Notes
 
-- No authentication or authorization yet, so anyone who can reach the API can read and change the data. Adding AuthN (who are you?) and AuthZ (what can you do?) is the natural next milestone.
-- The JSON file store suits one server instance, not several.
-- The rate limiter is in-memory and per process.
+- **401 Unauthorized & 403 Forbidden**: `apiKeyAuth` middleware is included in `src/middleware.js`. When `API_KEY` is set, requests without `X-API-Key` return 401, and requests with an incorrect key return 403. Full user accounts (JWT / OAuth) are planned for the next project phase.
+- **Circuit Breakers**: Circuit breaker patterns (such as Opossum) protect against failing external third-party microservices. Because HireTrail API currently runs with local atomic file storage and has zero downstream network calls, circuit breakers do not apply yet.
+- **Rate Limiting**: Enforced via in-memory sliding window at 100 req/min with `Retry-After` header.
+- **API key and the frontend**: `API_KEY` is unset by default, so the API is open. The frontend does not send an `X-API-Key` header, so leave `API_KEY` unset for the demo. A key placed in browser JavaScript would not be secret anyway.
 
 ## Author
 
-[Your full name], Full Stack Development Intern at [DecodeLabs](https://www.decodelabs.tech).
+Bamigbaye Opeyemi, Full Stack Development Intern at [DecodeLabs](https://www.decodelabs.tech).
+
