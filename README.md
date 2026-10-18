@@ -2,9 +2,31 @@
 
 A responsive, accessible, client-side web application that helps job seekers organize their job applications across five stages: **To Contact**, **Contacted**, **Interview Pending**, **Offer / Contract**, and **Closed**.
 
-Built for Project 1 (Responsive Frontend Interface) of the DecodeLabs Full Stack Development internship, using only HTML5, CSS3 and vanilla JavaScript.
+Built for Project 1 (Responsive Frontend Interface) and Project 2 (Backend API Development, located in [`/backend`](backend/README.md)) of the DecodeLabs Full Stack Development internship, using HTML5, CSS3, vanilla JavaScript, and Node.js/Express.
 
 **Live demo:** https://opeyemibamigbaye2-ui.github.io/hiretrail/
+
+---
+
+## Backend API (Project 2)
+
+HireTrail includes a RESTful backend API in [`/backend`](backend/README.md) built with Node.js and Express. It provides full CRUD endpoints (`/api/applications`), syntactic & semantic validation, atomic JSON file persistence, rate limiting, and CORS support.
+
+### Running the Backend Locally
+
+```bash
+cd backend
+npm install
+npm test    # runs 35 automated tests
+npm start   # starts server on http://localhost:3000
+```
+
+Verify it is running:
+```bash
+curl http://localhost:3000/api/health
+```
+
+For full endpoint documentation and examples, see [`backend/README.md`](backend/README.md).
 
 ---
 
@@ -15,7 +37,7 @@ Built for Project 1 (Responsive Frontend Interface) of the DecodeLabs Full Stack
 - **Filter by stage** using sidebar dropdown or mobile-friendly tab bar
 - **Search by company name** with debounced input
 - **Live stats** showing counts per stage, updated on every change
-- **Persistent state** via `localStorage` — data survives page reloads
+- **Persistent state** via `localStorage` (frontend) and REST API (backend)
 - **Mobile hamburger menu** with `aria-expanded` toggle, closes on Escape
 - **Accessible dialogs** (`<dialog>`) for add/edit and delete confirmation
 - **Inline form validation** with `aria-live` error messages
@@ -28,7 +50,7 @@ Built for Project 1 (Responsive Frontend Interface) of the DecodeLabs Full Stack
 
 1. Clone or download this repository.
 2. Open [`index.html`](index.html) in any modern browser (Chrome, Firefox, Edge, Safari).
-3. No build step, no dependencies, no server required.
+3. No build step, no dependencies required for the static frontend.
 
 To serve it locally (required for Lighthouse audits, which cannot run on `file://` URLs): run `python -m http.server 8000` inside the project folder and visit `http://localhost:8000`.
 
@@ -39,6 +61,12 @@ hiretrail/
 │   └── styles.css
 ├── js/
 │   └── app.js
+├── backend/          ← Project 2: REST API (Node.js + Express)
+│   ├── server.js
+│   ├── src/
+│   ├── test/
+│   ├── package.json
+│   └── README.md
 ├── assets/
 │   └── screenshots/
 ├── PLAN.md
