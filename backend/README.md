@@ -212,7 +212,7 @@ Every error has the same shape: `{ "error": { "status", "message", "details"? } 
 ## Performance & Response Time Header
 
 Every response includes an `X-Response-Time` header computed with high-precision `process.hrtime.bigint()`:
-- **Measured Response Time**: `7.43ms` for `/api/health`, sub-10ms for collection reads and writes.
+- **Measured Response Time**: typically 1 to 40 ms for requests on my local machine (the first request after a restart is slower), read from the `X-Response-Time` header.
 - Header is exposed via CORS: `Access-Control-Expose-Headers: Location,Retry-After,X-Response-Time`.
 
 ## How it follows the brief
